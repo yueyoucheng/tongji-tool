@@ -4,44 +4,43 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tongji 数据处理工具</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; }
-  .container { max-width: 700px; margin: 60px auto; padding: 30px; background: #fff; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
-  h1 { font-size: 22px; margin-bottom: 8px; }
-  p.desc { color: #666; font-size: 14px; margin-bottom: 24px; }
-  .upload-box { border: 2px dashed #ccc; border-radius: 8px; padding: 30px; text-align: center; margin-bottom: 16px; cursor: pointer; transition: .2s; }
-  .upload-box:hover { border-color: #2196F3; background: #f0f7ff; }
-  .upload-box.dragover { border-color: #2196F3; background: #e3f2fd; }
-  .upload-box .icon { font-size: 36px; color: #999; margin-bottom: 8px; }
-  .upload-box .label { font-size: 14px; color: #666; }
-  .file-list { margin: 12px 0; }
-  .file-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #f9f9f9; border-radius: 4px; margin-bottom: 4px; font-size: 13px; }
-  .file-item .del { color: #f44336; cursor: pointer; font-weight: bold; }
-  .tpl-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #f0f7ff; border-radius: 6px; margin: 16px 0; }
-  .tpl-row .status { color: #2196F3; font-size: 14px; }
-  .btn { width: 100%; padding: 12px; background: #2196F3; color: #fff; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: .2s; }
-  .btn:hover { background: #1976D2; }
-  .btn:disabled { background: #bbb; cursor: not-allowed; }
-  .log { margin-top: 16px; padding: 12px; background: #fafafa; border-radius: 6px; font-size: 13px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; display: none; }
-  .log-show { display: block; }
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, sans-serif; background: #f5f5f5; color: #333; }
+.container { max-width: 700px; margin: 60px auto; padding: 30px; background: #fff; border-radius: 10px; box-shadow: 0 2px 12px rgba(0,0,0,.08); }
+h1 { font-size: 22px; margin-bottom: 8px; }
+p.desc { color: #666; font-size: 14px; margin-bottom: 24px; }
+.upload-box { border: 2px dashed #ccc; border-radius: 8px; padding: 30px; text-align: center; margin-bottom: 16px; cursor: pointer; transition: .2s; }
+.upload-box:hover { border-color: #2196F3; background: #f0f7ff; }
+.upload-box .icon { font-size: 36px; margin-bottom: 8px; }
+.upload-box .label { font-size: 14px; color: #666; }
+.file-list { margin: 12px 0; }
+.file-item { display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #f9f9f9; border-radius: 4px; margin-bottom: 4px; font-size: 13px; }
+.file-item .del { color: #f44336; cursor: pointer; font-weight: bold; }
+.tpl-row { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: #f0f7ff; border-radius: 6px; margin: 16px 0; cursor: pointer; }
+.tpl-row .status { color: #4CAF50; font-size: 14px; }
+.btn { width: 100%; padding: 12px; background: #2196F3; color: #fff; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; transition: .2s; }
+.btn:hover { background: #1976D2; }
+.btn:disabled { background: #bbb; cursor: not-allowed; }
+.log { margin-top: 16px; padding: 12px; background: #fafafa; border-radius: 6px; font-size: 13px; max-height: 300px; overflow-y: auto; white-space: pre-wrap; display: none; }
+.log-show { display: block; }
 </style>
 </head>
 <body>
 <div class="container">
   <h1>📊 Tongji 处理工具</h1>
-  <p class="desc">上传所有数据文件和模板文件，自动计算统计结果</p>
+  <p class="desc">所有数据在本地浏览器中处理，不会上传到服务器</p>
 
   <div class="upload-box" id="dropZone">
     <div class="icon">📁</div>
     <div class="label">点击选择 或 拖拽数据文件(.xlsx)到此处</div>
   </div>
   <input type="file" id="fileInput" multiple accept=".xlsx" style="display:none">
-
   <div class="file-list" id="fileList"></div>
 
   <div class="tpl-row" id="tplRow">
-    <span>📄 未选择模板文件</span>
+    <span>📄 点击选择模板文件 (tongji.xlsx)</span>
   </div>
   <input type="file" id="tplInput" accept=".xlsx" style="display:none">
 
@@ -50,26 +49,19 @@
 </div>
 
 <script>
-const dropZone = document.getElementById("dropZone");
-const fileInput = document.getElementById("fileInput");
-const fileList = document.getElementById("fileList");
-const tplInput = document.getElementById("tplInput");
-const tplRow = document.getElementById("tplRow");
-const processBtn = document.getElementById("processBtn");
-const logArea = document.getElementById("logArea");
-let dataFiles = [];
-let tplFile = null;
+const BAND_MAP = { theta: 1, gamma: 11, "high-gamma": 21 };
+const DAY_MAP = { 1: 3, 2: 11, 3: 19, 4: 27, 5: 35 };
+const RATS = ["rat1", "rat2", "rat3"];
+const COL_MAP = [5,6,7,8,9,10,11,12]; // Ch1-Ch8 column indices (0-based)
 
-dropZone.onclick = () => fileInput.click();
-dropZone.ondragover = e => { e.preventDefault(); dropZone.classList.add("dragover"); };
-dropZone.ondragleave = () => dropZone.classList.remove("dragover");
-dropZone.ondrop = e => { e.preventDefault(); dropZone.classList.remove("dragover"); handleFiles(e.dataTransfer.files); };
-fileInput.onchange = () => handleFiles(fileInput.files);
+let dataFiles = [], tplFile = null;
 
-tplRow.onclick = () => tplInput.click();
-tplInput.onchange = () => { tplFile = tplInput.files[0]; updateUI(); };
+document.getElementById("dropZone").onclick = () => document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange = e => addFiles(e.target.files);
+document.getElementById("tplRow").onclick = () => document.getElementById("tplInput").click();
+document.getElementById("tplInput").onchange = e => { tplFile = e.target.files[0]; updateUI(); };
 
-function handleFiles(files) {
+function addFiles(files) {
   for (let f of files) {
     if (!f.name.endsWith(".xlsx")) continue;
     if (!dataFiles.find(x => x.name === f.name && x.size === f.size)) dataFiles.push(f);
@@ -83,32 +75,82 @@ function removeFile(name, size) {
 }
 
 function updateUI() {
-  fileList.innerHTML = dataFiles.map(f => `<div class="file-item"><span class="del" onclick="removeFile('${f.name}',${f.size})">✕</span>📄 ${f.name}</div>`).join("");
-  tplRow.innerHTML = tplFile
-    ? `<span class="status">●</span> 模板: ${tplFile.name}`
-    : `<span>📄 点击选择模板文件 (tongji.xlsx)</span>`;
-  processBtn.disabled = dataFiles.length === 0 || !tplFile;
+  let fl = document.getElementById("fileList");
+  fl.innerHTML = dataFiles.map(f => `<div class="file-item"><span class="del" onclick="removeFile('${f.name}',${f.size})">✕</span>📄 ${f.name}</div>`).join("");
+  let tr = document.getElementById("tplRow");
+  tr.innerHTML = tplFile ? `<span class="status">●</span> 模板: ${tplFile.name}` : `<span>📄 点击选择模板文件 (tongji.xlsx)</span>`;
+  document.getElementById("processBtn").disabled = dataFiles.length === 0 || !tplFile;
 }
 
-processBtn.onclick = async () => {
-  processBtn.disabled = true; processBtn.textContent = "处理中...";
-  logArea.textContent = ""; logArea.classList.add("log-show");
-  const fd = new FormData();
-  dataFiles.forEach(f => fd.append("data_files", f));
-  fd.append("template_file", tplFile);
+function q1q3(vals) {
+  let s = [...vals].sort((a,b)=>a-b);
+  let q1 = s[Math.floor(s.length/4)], q3 = s[Math.floor(3*s.length/4)];
+  let mid = vals.filter(v => v >= q1 && v <= q3);
+  return mid.reduce((a,b)=>a+b,0) / mid.length;
+}
+
+document.getElementById("processBtn").onclick = async function() {
+  let btn = this; btn.disabled = true; btn.textContent = "处理中...";
+  let log = document.getElementById("logArea");
+  log.textContent = ""; log.classList.add("log-show");
+
   try {
-    const res = await fetch("/process", { method: "POST", body: fd });
-    if (!res.ok) { logArea.textContent = "服务器错误: " + await res.text(); return; }
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a"); a.href = url; a.download = "tongji_processed.xlsx"; a.click();
+    let tplData = await readFile(tplFile);
+    let tplWb = XLSX.read(tplData, {type: "array"});
+    let ws = tplWb.Sheets[tplWb.SheetNames[0]];
+
+    for (let f of dataFiles) {
+      try {
+        let buf = await readFile(f);
+        let wb = XLSX.read(buf, {type: "array"});
+        let sd = wb.Sheets[wb.SheetNames[0]];
+
+        let rat = cellVal(sd, 1, 2);
+        let dayStr = String(cellVal(sd, 1, 3) || "");
+        let band = cellVal(sd, 1, 4);
+        let dayNum = parseInt(dayStr.replace(/\D/g, ""));
+
+        let sr = BAND_MAP[band];
+        if (!sr) { log.textContent += `✗ ${f.name}: 未知波段\n`; continue; }
+        let ri = RATS.indexOf(rat);
+        if (ri < 0) { log.textContent += `✗ ${f.name}: 未知rat\n`; continue; }
+        let col = DAY_MAP[dayNum];
+        if (!col) { log.textContent += `✗ ${f.name}: 未知day\n`; continue; }
+
+        let rm = sr + 2 + ri * 2, ro = sr + 3 + ri * 2;
+
+        for (let ch = 0; ch < 8; ch++) {
+          let vals = [];
+          for (let r = 1; r < 46; r++) {
+            let v = cellVal(sd, r, 5 + ch);
+            if (v !== null) vals.push(v);
+          }
+          if (vals.length > 0) {
+            let mean = vals.reduce((a,b)=>a+b,0) / vals.length;
+            writeCell(ws, rm, col + ch + 1, mean);
+            writeCell(ws, ro, col + ch + 1, q1q3(vals));
+          }
+        }
+        log.textContent += `✓ ${f.name}  (${rat}, ${dayStr}, ${band})\n`;
+      } catch(e) {
+        log.textContent += `✗ ${f.name}: ${e.message}\n`;
+      }
+    }
+
+    let out = XLSX.write(tplWb, {bookType: "xlsx", type: "array"});
+    let blob = new Blob([out], {type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+    let url = URL.createObjectURL(blob);
+    let a = document.createElement("a"); a.href = url; a.download = "tongji_processed.xlsx"; a.click();
     URL.revokeObjectURL(url);
-    logArea.textContent = "✅ 处理完成！文件已下载。";
-  } catch (e) {
-    logArea.textContent = "❌ 处理失败: " + e.message;
-  }
-  processBtn.disabled = false; processBtn.textContent = "开始处理";
+    log.textContent += "\n✅ 处理完成，文件已下载！";
+  } catch(e) { log.textContent = "❌ 错误: " + e.message; }
+
+  btn.disabled = false; btn.textContent = "开始处理";
 };
+
+function readFile(f) { return new Promise((res,rej)=>{ let r = new FileReader(); r.onload = ()=>res(r.result); r.onerror = rej; r.readAsArrayBuffer(f); }); }
+function cellVal(ws, r, c) { let a = XLSX.utils.encode_cell({r,c}); return ws[a] ? ws[a].v : null; }
+function writeCell(ws, r, c, v) { let a = XLSX.utils.encode_cell({r:r-1,c:c-1}); ws[a] = {t:'n',v:+v.toFixed(4)}; }
 </script>
 </body>
 </html>
